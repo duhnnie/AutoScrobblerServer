@@ -1,0 +1,14 @@
+{
+  "name": "autoscrobbler",
+  "version": "1.0.0",
+  "description": "LastFM scrobbler that scans an online radio webpage and gets the track to scrobble it.",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "Daniel Canedo",
+  "license": "ISC",
+  "dependencies": {
+    "axios": "^0.21.1"
+  }
+}
