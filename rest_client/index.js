@@ -29,6 +29,8 @@ const REQUEST_DEFAULTS = Object.freeze({
 
 const ALLOWED_CONFIG_KEYS = Object.freeze(Object.keys(REQUEST_DEFAULTS));
 
+const noop = () => {};
+
 function sanitize(config) {
   return Object.entries(config)
     .filter(([key]) => ALLOWED_CONFIG_KEYS.includes(key))
@@ -45,19 +47,54 @@ function isUrlAbsolute(url) {
   return url.indexOf('//') === 0 ? true : url.indexOf('://') === -1 ? false : url.indexOf('.') === -1 ? false : url.indexOf('/') === -1 ? false : url.indexOf(':') > url.indexOf('/') ? false : url.indexOf('://') < url.indexOf('.') ? true : false;
 }
 
+function createInterceptor(interceptor, deactivator) {
+  return { interceptor, deactivator: deactivator || noop };
+}
+
+function processRequest(config, interceptors) {
+  const { request: requestInterceptors = [], response: responseInterceptors = [] } = interceptors;
+
+  const preRequest = requestInterceptors.reduce((promise, { interceptor, deactivator }) => {
+    return promise.then((cfg) => {
+      const configClone = { ...cfg };
+
+      if (deactivator(configClone) === false) {
+        return cfg;
+      }
+
+      return interceptor(configClone);
+    });
+  }, Promise.resolve(config));
+
+  const request = preRequest.then(axios);
+
+  const postRequest = responseInterceptors.reduce((promise, { interceptor, deactivator }) => {
+    return promise.then((response) => {
+      if (deactivator(response) === false) {
+        return response;
+      }
+
+      return interceptor(response);
+    });
+  }, request);
+
+  return postRequest;
+}
+
 class RestClient {
   static get HEADERS_CONTEXT() {
     return HEADERS_CONTEXT;
   }
 
-  static request(config) {
+  static request(config, interceptors = null) {
     const sanitizedConfig = sanitize(config);
     const requestConfig = {
       ...REQUEST_DEFAULTS,
       ...sanitizedConfig,
     };
+    const myInterceptors = interceptors || {};
 
-    return axios(requestConfig);
+    return processRequest(requestConfig, myInterceptors);
   }
 
   static get(url, params = null, headers = null, timeout = 0) {
@@ -74,6 +111,8 @@ class RestClient {
       ...settings,
     };
 
+    this._requestInterceptors = [];
+    this._responseInterceptors = [];
     this.removeAllHeaders();
     this.setBaseURL(mySettings.baseURL);
     this.setTimeout(mySettings.timeout);
@@ -126,7 +165,30 @@ class RestClient {
       url: myUrl,
       headers: myHeaders,
       timeout: myTimeout,
+    }, {
+      request: this._requestInterceptors,
+      response: this._responseInterceptors,
     });
+  }
+
+  addRequestInterceptor(interceptFn, deactivator = null) {
+    this._requestInterceptors.push(createInterceptor(interceptFn, deactivator));
+
+    return this._requestInterceptors.length;
+  }
+
+  removeRequestInterceptor(id) {
+    this._requestInterceptors[id] = null;
+  }
+
+  addResponseInterceptor(interceptFn, deactivator = null) {
+    this._responseInterceptors.push(createInterceptor(interceptFn, deactivator));
+
+    return this._responseInterceptors.length;
+  }
+
+  removeResponseInterceptors(id) {
+    this._responseInterceptors[id] = null;
   }
 
   get(url, params = null, headers = null, timeout = null) {
@@ -136,25 +198,17 @@ class RestClient {
       ...headers
     };
 
-    return this.request({
-      url,
-      method,
-      params,
-      timeout,
-      headers: myHeaders,
-    });
+    return this.request({ url, method, params, timeout, headers: myHeaders });
   }
 
-  post(url, data, headers = null, timeout = null) {
-    const myUrl = isUrlAbsolute(url) ? url : urlJoin(this._baseURL, url);
+  post(url, data = {}, headers = null, timeout = null) {
+    const method = HEADERS_CONTEXT.POST;
     const myHeaders = {
-      ...this._headers[HEADERS_CONTEXT.COMMON],
       ...this._headers[HEADERS_CONTEXT.POST],
       ...headers,
     };
-    const myTimeout = timeout === null ? this._timeout : timeout;
 
-    return RestClient.post(myUrl, data, myHeaders, myTimeout);
+    return this.request({ url, method, data, headers: myHeaders, timeout });
   }
 }
 
