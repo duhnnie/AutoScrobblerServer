@@ -29,6 +29,7 @@ const REQUEST_DEFAULTS = Object.freeze({
 
 const ALLOWED_CONFIG_KEYS = Object.freeze(Object.keys(REQUEST_DEFAULTS));
 
+const noopInterceptor = (input) => input;
 const noop = () => {};
 
 function sanitize(config) {
@@ -47,8 +48,9 @@ function isUrlAbsolute(url) {
   return url.indexOf('//') === 0 ? true : url.indexOf('://') === -1 ? false : url.indexOf('.') === -1 ? false : url.indexOf('/') === -1 ? false : url.indexOf(':') > url.indexOf('/') ? false : url.indexOf('://') < url.indexOf('.') ? true : false;
 }
 
-function createInterceptor(interceptor, deactivator) {
-  return { interceptor, deactivator: deactivator || noop };
+function requester(config) {
+  return axios(config)
+    .catch(({ response, request, config }) => Promise.reject(response, request, config));
 }
 
 function processRequest(config, interceptors) {
@@ -66,16 +68,28 @@ function processRequest(config, interceptors) {
     });
   }, Promise.resolve(config));
 
-  const request = preRequest.then(axios);
+  const request = preRequest.then(requester);
 
-  const postRequest = responseInterceptors.reduce((promise, { interceptor, deactivator }) => {
-    return promise.then((response) => {
-      if (deactivator(response) === false) {
-        return response;
-      }
+  const postRequest = responseInterceptors.reduce((promise, { successInterceptor, errorInterceptor, deactivator }) => {
+    return promise
+      .then((response) => {
+        const responseClone = { ...response };
 
-      return interceptor(response);
-    });
+        if (deactivator(responseClone) === false) {
+          return response;
+        }
+
+        return successInterceptor(response);
+      })
+      .catch((error) => {
+        const errorClone = { ...error };
+
+        if (deactivator(errorClone) === false) {
+          return error;
+        }
+
+        return errorInterceptor(error, config, requester);
+      });
   }, request);
 
   return postRequest;
@@ -142,11 +156,18 @@ class RestClient {
     };
   }
 
+  getHeader(key, context = HEADERS_CONTEXT.COMMON) {
+    const headers = this._headers[context];
+
+    return headers && headers[key];
+  }
+
   removeHeader(key, context = HEADERS_CONTEXT) {
     delete this._headers[context][key];
   }
 
   removeAllHeaders() {
+    // TODO: Use Map instead.
     this._headers = {};
   }
 
@@ -171,8 +192,11 @@ class RestClient {
     });
   }
 
-  addRequestInterceptor(interceptFn, deactivator = null) {
-    this._requestInterceptors.push(createInterceptor(interceptFn, deactivator));
+  addRequestInterceptor(interceptor, deactivator = null) {
+    this._requestInterceptors.push({
+      interceptor,
+      deactivator: deactivator || noop
+    });
 
     return this._requestInterceptors.length;
   }
@@ -181,10 +205,18 @@ class RestClient {
     this._requestInterceptors[id] = null;
   }
 
-  addResponseInterceptor(interceptFn, deactivator = null) {
-    this._responseInterceptors.push(createInterceptor(interceptFn, deactivator));
+  addResponseInterceptor(successInterceptor = null, errorInterceptor = null, deactivator = null) {
+    if (successInterceptor || errorInterceptor) {
+          this._responseInterceptors.push({
+            successInterceptor: successInterceptor || noopInterceptor,
+            errorInterceptor: errorInterceptor || noopInterceptor,
+            deactivator: deactivator || noop,
+          });
 
-    return this._responseInterceptors.length;
+          return this._responseInterceptors.length;
+    }
+
+    throw new Error('addResponseInterceptor(): at least one interceptor must be supplied.');
   }
 
   removeResponseInterceptors(id) {
