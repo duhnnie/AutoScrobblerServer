@@ -1,5 +1,6 @@
 const querystring = require('querystring');
 const RestClient = require('../rest_client');
+const endpoints = require('./endpoints');
 
 const STORE = new WeakMap();
 
@@ -26,7 +27,7 @@ module.exports = {
 
   getToken(clientBase64) {
     return RestClient.post(
-      'https://accounts.spotify.com/api/token',
+      endpoints.authURL,
       querystring.stringify({ grant_type: 'client_credentials' }),
       {
         'Authorization': `Basic ${clientBase64}`,

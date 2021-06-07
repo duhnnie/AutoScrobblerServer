@@ -11,7 +11,6 @@ const SEARCH_TYPE = Object.freeze({
   SHOW: 'show',
   EPISODE: 'episode',
 });
-
 class SpotifyAPIClient {
   static get SEARCH_TYPE() {
     return SEARCH_TYPE;
@@ -21,37 +20,43 @@ class SpotifyAPIClient {
     Utils.setValue(this, 'client_base64', Utils.toBase64(`${client_id}:${client_secret}`));
 
     this._restClient = new RestClient({
-      baseURL: 'https://api.spotify.com/v1',
+      baseURL: endpoints.baseURL,
     });
 
-    this._restClient.addRequestInterceptor((config) => {
-      const clientBase64 = Utils.getValue(this, 'client_base64');
+    this._restClient.addRequestInterceptor(
+      async (config) => await this._updateConfigWithNewAutorization(config),
+      () => !this._restClient.getHeader('Authorization')
+    );
 
-      return Utils.getToken(clientBase64)
-        .then(({ data }) => {
-          const newAuthorization = `Bearer ${data.access_token}`;
+    this._restClient.addResponseInterceptor(null, async (request, config, requester) => {
+      const newConfig = await this._updateConfigWithNewAutorization(config);
 
-          this._restClient.setHeader('Authorization', newAuthorization);
-          config.headers['Authorization'] = newAuthorization;
-
-          return config;
-        });
-    }, () => !this._restClient.getHeader('Authorization'));
-
-    this._restClient.addResponseInterceptor(null, (error, config, requester) => {
-      const clientBase64 = Utils.getValue(this, 'client_base64');
-
-      return Utils.getToken(clientBase64)
-        .then(({ data }) => {
-          const newAuthorization = `Bearer ${data.access_token}`;
-
-          this._restClient.setHeader('Authorization', newAuthorization);
-          config.headers['Authorization'] = newAuthorization;
-
-          return config;
-        })
-        .then(requester);
+      requester(newConfig);;
     }, (response) => response.status === 401);
+  }
+
+  _refreshToken() {
+    const clientBase64 = Utils.getValue(this, 'client_base64');
+
+    return Utils.getToken(clientBase64)
+      .then(({ data }) => {
+        const newAuthorization = `Bearer ${data.access_token}`;
+
+        this._restClient.setHeader('Authorization', newAuthorization);
+
+        return newAuthorization;
+      });
+  }
+
+  _updateConfigWithNewAutorization(config) {
+    return this._refreshToken()
+      .then((authorization) => {
+        const newConfig = { ...config };
+
+        newConfig.headers['Authorization'] = authorization;
+
+        return newConfig;
+      });
   }
 
   search(query, type) {
