@@ -70,12 +70,12 @@ function processRequest(config, interceptors) {
 
   const request = preRequest.then(requester);
 
-  const postRequest = responseInterceptors.reduce((promise, { successInterceptor, errorInterceptor, deactivator }) => {
+  const postRequest = responseInterceptors.reduce((promise, { successInterceptor, successDeactivator, errorInterceptor, errorDeactivator }) => {
     return promise
       .then((response) => {
         const responseClone = { ...response };
 
-        if (deactivator(responseClone) === false) {
+        if (successDeactivator(responseClone) === false) {
           return response;
         }
 
@@ -84,7 +84,7 @@ function processRequest(config, interceptors) {
       .catch((error) => {
         const errorClone = { ...error };
 
-        if (deactivator(errorClone) === false) {
+        if (errorDeactivator(errorClone) === false) {
           return error;
         }
 
@@ -205,12 +205,13 @@ class RestClient {
     this._requestInterceptors[id] = null;
   }
 
-  addResponseInterceptor(successInterceptor = null, errorInterceptor = null, deactivator = null) {
+  addResponseInterceptor(successInterceptor = null, successDeactivator = null, errorInterceptor = null, errorDeactivator = null) {
     if (successInterceptor || errorInterceptor) {
           this._responseInterceptors.push({
             successInterceptor: successInterceptor || noopInterceptor,
+            successDeactivator: successDeactivator || noop,
             errorInterceptor: errorInterceptor || noopInterceptor,
-            deactivator: deactivator || noop,
+            errorDeactivator: errorDeactivator || noop,
           });
 
           return this._responseInterceptors.length;

@@ -1,4 +1,4 @@
-const querystring = require('querystring');
+// const querystring = require('querystring');
 const RestClient = require('../rest_client');
 const endpoints = require('./endpoints');
 const Utils = require('./utils');
@@ -17,7 +17,7 @@ class SpotifyAPIClient {
   }
 
   constructor(client_id, client_secret) {
-    Utils.setValue(this, 'client_base64', Utils.toBase64(`${client_id}:${client_secret}`));
+    this.setCredentials(client_id, client_secret);
 
     this._restClient = new RestClient({
       baseURL: endpoints.baseURL,
@@ -28,11 +28,15 @@ class SpotifyAPIClient {
       () => !this._restClient.getHeader('Authorization')
     );
 
-    this._restClient.addResponseInterceptor(null, async (request, config, requester) => {
+    this._restClient.addResponseInterceptor((response) => response.data, null, async (request, config, requester) => {
       const newConfig = await this._updateConfigWithNewAutorization(config);
 
-      requester(newConfig);;
+      requester(newConfig);
     }, (response) => response.status === 401);
+  }
+
+  setCredentials(client_id, client_secret) {
+    Utils.setValue(this, 'client_base64', Utils.toBase64(`${client_id}:${client_secret}`));
   }
 
   _refreshToken() {
@@ -59,13 +63,13 @@ class SpotifyAPIClient {
       });
   }
 
-  search(query, type) {
+  search(query, type, market = null, limit = 20, offset = 0, include_external = null) {
     const q = Object.entries(query).reduce((acc, [key, value]) => {
       return `${acc} ${key}:${value}`;
     }, '').trim();
 
     const t = Array.isArray(type) ? type.join(',') : type;
-    const url = endpoints.search(q, t);
+    const url = endpoints.search(q, t, market, limit, offset, include_external);
 
     return this._restClient.get(url);
   }
