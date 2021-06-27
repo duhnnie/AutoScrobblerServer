@@ -76,14 +76,25 @@ const splitTrack = function (trackTitle) {
   return trackTitle.split(/\(|\)/).filter((word) => word);
 }
 
+const diffWithNextTrack = function (date1, date2) {
+  const d1 = [...date1];
+  const d2 = [...date2];
+
+  d1[1] --;
+  d2[1] --;
+
+  return Math.abs(new Date(...d1) - new Date(...d2));
+}
+
 const testArtist = function (artistsArray, artistPart, trackPart) {
   const lcArtistPart = artistPart.toLowerCase();
   const lcTrackPart = trackPart.toLowerCase();
+  const artistsWithoutInitialThe = artistsArray.map((artist) => artist.replace(/^the\s/i, ''));
 
   // If all the artists exists in artist or track part.
-  return artistsArray.every((artist) => lcArtistPart.includes(artist.toLowerCase()) || lcTrackPart.includes(artist.toLowerCase()))
+  return artistsWithoutInitialThe.every((artist) => lcArtistPart.includes(artist.toLowerCase()) || lcTrackPart.includes(artist.toLowerCase()))
     // If at least one of the artist exists in the artist part.
-    && artistsArray.some((artist) => lcArtistPart.includes(artist.toLowerCase()));
+    && artistsWithoutInitialThe.some((artist) => lcArtistPart.includes(artist.toLowerCase()));
 };
 
 const testTrack = function (data, trackArray) {

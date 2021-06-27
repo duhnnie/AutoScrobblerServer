@@ -1,6 +1,11 @@
 const Spotify = require('../spotify');
-const { sanitize, normalize, sortData, testArtist, splitTrack, testTrack } = require('./utils');
+const { sanitize, normalize, sortData, testArtist, splitTrack, testTrack, diffWithNextTrack } = require('./utils');
 
+const ALBUM_TYPE = {
+  SINGLE: 'single',
+  ALBUM: 'album',
+  COMPILATION: 'compilation',
+};
 const spotify = new Spotify();
 
 const setSpotifyCredentials = function (client_id, client_secret) {
@@ -49,24 +54,19 @@ const filterTracks = function (tracks, artist, title) {
     return (testTrack(track, splitTrack(lcTitle)) && testArtist(track.artists, artist, title));
   });
 
-  // if (filtered.length) {
-  //   return filtered;
-  // }
-
-  // // filter out all results that doesn't match at with one artist at least.
-  // // There's some special cases in which this can be useful
-  // // i.e. artist = Justin Timberlake | track = Cant stop the feeling
-  // filtered = tracks.filter((track) => {
-  //   return track.artists.some((art) => artist.includes(art));
-  // });
-
   return filtered;
 }
 
 const getAlbumData = function (data) {
   const sortedData = sortData(data);
 
-  return sortedData;
+  return data.find((track, index, trackList) => {
+    if (trackList.length === 1) {
+      return true;
+    }
+
+    return track.album_type !== ALBUM_TYPE.SINGLE || diffWithNextTrack(track.release_date, trackList[index + 1].release_date) <= 60 * 60 * 24 * 180;
+  });
 };
 
 const resolve = async function (artist, track) {
@@ -77,8 +77,6 @@ const resolve = async function (artist, track) {
   const data = await getData(sanitizedArtist, sanitizedTrack);
   const filteredData = filterTracks(data, trimmedArtist, trimmedTrack);
   const albumData = getAlbumData(filteredData);
-
-  // console.log('original length', data.length);
 
   return albumData;
 };
