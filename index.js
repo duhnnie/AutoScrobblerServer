@@ -13,8 +13,18 @@ app.get('/api/album-info', async (req, res) => {
   try {
     album = await AlbumResolver.resolve(artist, track);
 
-    res.send(album)
+    console.log(`for artist"${artist}" and track "${track}" it was found:`, album)
+
+    if (album) {
+      res.send(album)
+    } else {
+      res.send(404).send({
+        message: 'Not found'
+      })
+    }
   } catch ({ response }) {
+    console.error(`Error for artist"${artist}" and track "${track}":`, response)
+
     res.status(400).send({
       data: response.data,
       statusText: response.statusText,
