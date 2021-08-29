@@ -33,5 +33,5 @@ app.get('/api/album-info', async (req, res) => {
 })
 
 app.listen(port, () => {
-  console.log(`Running on port ${port}\nTry making a request to http://localhost:3000/api/album-info?artist=silversun%20pickups&track=substitution`)
+  console.log(`Running on port ${port}\nTry making a request to http://localhost:${port}/api/album-info?artist=silversun%20pickups&track=substitution`)
 })
