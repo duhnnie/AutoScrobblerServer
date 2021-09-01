@@ -26,7 +26,7 @@ app.get('/api/album-info', async (req, res) => {
   } catch ({ response }) {
     console.error(`Error for artist"${artist}" and track "${track}":`, response)
 
-    res.staus(400)
+    res.status(400)
       .send({
         data: response && response.data,
         statusText: response && response.statusText,
