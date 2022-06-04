@@ -60,13 +60,20 @@ const filterTracks = function (tracks, artist, title) {
 const getAlbumData = function (data) {
   const sortedData = sortData(data);
 
-  return data.find((track, index, trackList) => {
+  const foundAlbum = sortedData.find((track, index, trackList) => {
     if (trackList.length === 1) {
       return true;
     }
 
-    return track.album_type !== ALBUM_TYPE.SINGLE || diffWithNextTrack(track.release_date, trackList[index + 1].release_date) <= 60 * 60 * 24 * 180;
+    return track.album_type !== ALBUM_TYPE.SINGLE ||
+      (trackList[index + 1] && diffWithNextTrack(track.release_date, trackList[index + 1].release_date) <= 60 * 60 * 24 * 180);
   });
+
+  if (foundAlbum) {
+    return foundAlbum
+  }
+
+  return sortedData[0]
 };
 
 const resolve = async function (artist, track) {

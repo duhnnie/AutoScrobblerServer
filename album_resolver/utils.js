@@ -114,4 +114,5 @@ module.exports = {
   testArtist,
   splitTrack,
   testTrack,
+  diffWithNextTrack
 };
